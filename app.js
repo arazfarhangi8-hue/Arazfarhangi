@@ -22,14 +22,18 @@ $('#saveProfile').onclick = () => {
 };
 modal.onclick = (e) => { if (e.target === modal) modal.classList.add('hidden'); };
 
-// ---------- تخته سفید واقعی ----------
+// ---------- تخته سفید ----------
 const canvas = $('#board');
 const ctx = canvas.getContext('2d', { alpha: false });
+const canvasWrap = document.querySelector('.canvas-wrap');
+const boardTextInput = $('#boardTextInput');
 let dpr = Math.max(1, window.devicePixelRatio || 1);
 let drawing = false;
 let locked = true;
 let tool = 'pen';
 let lastPoint = null;
+let textMode = false;
+let textPoint = null;
 
 function setupCanvasSize() {
   const rect = canvas.getBoundingClientRect();
@@ -56,7 +60,7 @@ function getPoint(e) {
 }
 
 function startDrawing(e) {
-  if (locked) return;
+  if (locked || textMode) return;
   e.preventDefault();
   drawing = true;
   lastPoint = getPoint(e);
@@ -71,7 +75,7 @@ function startDrawing(e) {
 }
 
 function draw(e) {
-  if (!drawing || locked || !lastPoint) return;
+  if (!drawing || locked || textMode || !lastPoint) return;
   e.preventDefault();
   const point = getPoint(e);
   ctx.save();
@@ -102,13 +106,106 @@ function updateLockUI() {
   $('#lockBoard').textContent = locked ? '🔒 تخته قفل است' : '🔓 تخته باز است';
   $('#lockBoard').classList.toggle('locked', locked);
   $('#lockOverlay').style.display = locked ? 'block' : 'none';
-  $('#boardState').textContent = locked ? 'فقط معلم می‌تواند روی تخته بنویسد' : 'تخته برای نوشتن باز است';
+  $('#boardState').textContent = locked
+    ? 'فقط معلم می‌تواند روی تخته بنویسد'
+    : (textMode ? 'حالت کیبورد فعال است؛ روی تخته کلیک کنید و تایپ کنید' : 'تخته برای نوشتن باز است');
+}
+
+function closeTextInput() {
+  boardTextInput.classList.add('hidden');
+  boardTextInput.value = '';
+  textPoint = null;
+}
+
+function commitBoardText() {
+  if (!textPoint) return;
+  const value = boardTextInput.value.trim();
+  if (!value) {
+    closeTextInput();
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.max(8, Math.min(textPoint.x, rect.width - 8));
+  const y = Math.max(34, Math.min(textPoint.y, rect.height - 8));
+
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#1479ff';
+  ctx.font = 'bold 26px Tahoma, Arial, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'alphabetic';
+
+  // چندخطی شدن متن با Shift+Enter
+  const lines = value.split(/\n/);
+  lines.forEach((line, index) => {
+    ctx.fillText(line, x, y + index * 34);
+  });
+  ctx.restore();
+  closeTextInput();
+}
+
+function startTextMode() {
+  if (locked) return;
+  textMode = !textMode;
+  if (textMode) {
+    tool = 'text';
+    document.querySelectorAll('.tool[data-tool]').forEach((item) => item.classList.remove('active'));
+    $('#keyboardTool').classList.add('active');
+    boardTextInput.classList.add('hidden');
+    boardTextInput.value = '';
+  } else {
+    tool = 'pen';
+    document.querySelectorAll('.tool[data-tool]').forEach((item) => item.classList.remove('active'));
+    document.querySelector('.tool[data-tool="pen"]')?.classList.add('active');
+    closeTextInput();
+  }
+  updateLockUI();
 }
 
 $('#lockBoard').onclick = () => {
   locked = !locked;
+  if (locked) {
+    textMode = false;
+    tool = 'pen';
+    document.querySelectorAll('.tool[data-tool]').forEach((item) => item.classList.remove('active'));
+    document.querySelector('.tool[data-tool="pen"]')?.classList.add('active');
+    closeTextInput();
+  }
   updateLockUI();
 };
+
+$('#keyboardTool').onclick = startTextMode;
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (!textMode || locked) return;
+  e.preventDefault();
+  const p = getPoint(e);
+  textPoint = p;
+  const wrapRect = canvasWrap.getBoundingClientRect();
+  const inputLeft = Math.max(8, Math.min(p.x, canvas.clientWidth - 300));
+  const inputTop = Math.max(8, Math.min(p.y, canvas.clientHeight - 55));
+  boardTextInput.style.left = `${inputLeft}px`;
+  boardTextInput.style.top = `${inputTop}px`;
+  boardTextInput.style.maxWidth = `${Math.max(180, wrapRect.width - inputLeft - 12)}px`;
+  boardTextInput.classList.remove('hidden');
+  boardTextInput.focus();
+});
+
+boardTextInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    commitBoardText();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeTextInput();
+  }
+});
+
+boardTextInput.addEventListener('blur', () => {
+  if (!boardTextInput.value.trim()) closeTextInput();
+});
 
 $('#clearBoard').onclick = () => {
   const rect = canvas.getBoundingClientRect();
@@ -118,13 +215,18 @@ $('#clearBoard').onclick = () => {
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, rect.width, rect.height);
   ctx.restore();
+  closeTextInput();
 };
 
 document.querySelectorAll('.tool[data-tool]').forEach((button) => {
   button.onclick = () => {
+    if (locked) return;
     tool = button.dataset.tool;
-    document.querySelectorAll('.tool[data-tool]').forEach((item) => item.classList.remove('active'));
+    textMode = false;
+    closeTextInput();
+    document.querySelectorAll('.tool[data-tool], #keyboardTool').forEach((item) => item.classList.remove('active'));
     button.classList.add('active');
+    updateLockUI();
   };
 });
 
