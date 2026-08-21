@@ -60,5 +60,16 @@
   };
   const mute=$('#muteBtn');if(mute)mute.onclick=function(){if(myLocked('audio'))return;const t=localStream?.getAudioTracks?.()[0];if(!t)return;t.enabled=!t.enabled;mute.textContent=t.enabled?'بی‌صدا کردن میکروفون':'روشن کردن میکروفون';broadcast({type:'mute',muted:!t.enabled});};
   const cam=$('#camBtn');if(cam)cam.onclick=function(){if(myLocked('video'))return;const t=localStream?.getVideoTracks?.()[0];if(!t)return;t.enabled=!t.enabled;cam.textContent=t.enabled?'خاموش کردن دوربین':'روشن کردن دوربین';};
-  setInterval(refreshStudentButtons,1000);
+
+  setInterval(function(){
+    refreshStudentButtons();
+    if(typeof role==='undefined'||role!=='host')return;
+    const tl=getTeacherLocks();if(!tl)return;
+    connections.forEach((c,id)=>{
+      if(!c?.open)return;
+      const s=tl.get(id);if(!s)return;
+      if(s.audio)c.send({type:'teacherMediaLock',kind:'audio',locked:true});
+      if(s.video)c.send({type:'teacherMediaLock',kind:'video',locked:true});
+    });
+  },1000);
 })();
