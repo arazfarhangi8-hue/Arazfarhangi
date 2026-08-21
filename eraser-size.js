@@ -10,7 +10,7 @@
     {label:'بزرگ',value:45},
     {label:'خیلی بزرگ',value:65}
   ];
-  let eraserSize=28,erasing=false,lastPoint=null;
+  let eraserSize=28,erasing=false,lastPoint=null,pendingSize=28;
   const wrap=document.createElement('div');
   wrap.className='eraser-size-wrap';
   wrap.innerHTML='<button type="button" id="eraserSizeBtn" class="eraser-size-btn">📏 اندازه پاک‌کن</button>';
@@ -18,28 +18,29 @@
   const modal=document.createElement('div');
   modal.id='eraserSizeModal';
   modal.className='eraser-size-modal hidden';
-  modal.innerHTML='<div class="eraser-size-card"><button type="button" id="closeEraserSize" class="close">×</button><h3>اندازه پاک‌کن</h3><div id="eraserSizeOptions" class="eraser-size-options"></div><button type="button" id="saveEraserSize" class="primary">اعمال اندازه</button></div>';
+  modal.innerHTML='<div class="eraser-size-card"><button type="button" id="closeEraserSize" class="close">×</button><h3>اندازه پاک‌کن</h3><div id="eraserSizeDegree" class="eraser-size-degree">درجه: 3 از 5</div><input id="eraserSizeRange" type="range" min="1" max="5" value="3" step="1"><div class="eraser-size-labels"><span>خیلی کوچک</span><span>کوچک</span><span>متوسط</span><span>بزرگ</span><span>خیلی بزرگ</span></div><div id="eraserSizeSelected">اندازه انتخاب‌شده: متوسط</div><button type="button" id="saveEraserSize" class="primary">اعمال اندازه</button></div>';
   document.body.appendChild(modal);
-  const options=modal.querySelector('#eraserSizeOptions');
-  sizes.forEach((item,i)=>{
-    const b=document.createElement('button');
-    b.type='button';
-    b.className='eraser-option';
-    b.dataset.size=item.value;
-    b.innerHTML=`<span class="eraser-dot" style="width:${item.value}px;height:${item.value}px"></span><span>${item.label}</span>`;
-    b.onclick=()=>{
-      eraserSize=item.value;
-      options.querySelectorAll('.eraser-option').forEach(x=>x.classList.remove('selected'));
-      b.classList.add('selected');
-    };
-    options.appendChild(b);
-    if(item.value===eraserSize)b.classList.add('selected');
-  });
-  const open=()=>{options.querySelectorAll('.eraser-option').forEach(x=>x.classList.toggle('selected',Number(x.dataset.size)===eraserSize));modal.classList.remove('hidden');};
+  const range=modal.querySelector('#eraserSizeRange');
+  const degree=modal.querySelector('#eraserSizeDegree');
+  const selected=modal.querySelector('#eraserSizeSelected');
+  const labels=sizes.map(x=>x.label);
+  const updateLabel=()=>{
+    const index=Number(range.value)-1;
+    pendingSize=sizes[index].value;
+    degree.textContent=`درجه: ${range.value} از 5`;
+    selected.textContent=`اندازه انتخاب‌شده: ${labels[index]}`;
+  };
+  const open=()=>{
+    const index=sizes.findIndex(x=>x.value===eraserSize);
+    range.value=String(index>=0?index+1:3);
+    updateLabel();
+    modal.classList.remove('hidden');
+  };
   const close=()=>modal.classList.add('hidden');
   document.querySelector('#eraserSizeBtn').onclick=open;
   modal.querySelector('#closeEraserSize').onclick=close;
-  modal.querySelector('#saveEraserSize').onclick=()=>{close();updateCursor();};
+  modal.querySelector('#saveEraserSize').onclick=()=>{eraserSize=pendingSize;close();updateCursor();};
+  range.oninput=updateLabel;
   modal.addEventListener('click',e=>{if(e.target===modal)close();});
   const isEraserActive=()=>!!document.querySelector('.tool[data-tool="eraser"].active');
   const isUnlocked=()=>{const b=document.querySelector('#lockBoard');return !!b&&!b.classList.contains('locked');};
@@ -54,6 +55,6 @@
   canvas.addEventListener('pointercancel',endErase,true);
   document.addEventListener('click',e=>{if(e.target.closest('[data-tool="eraser"]'))setTimeout(()=>{if(isEraserActive())updateCursor();},0);});
   const style=document.createElement('style');
-  style.textContent=`.eraser-size-wrap{margin:0 0 6px}.eraser-size-btn{width:100%;font-family:inherit;border:1px solid var(--line);border-radius:11px;padding:8px 10px;background:#fff;color:var(--ink);cursor:pointer}.eraser-size-btn:hover{background:#f7fbff}.eraser-size-modal{position:fixed;inset:0;background:rgba(12,35,56,.46);display:grid;place-items:center;z-index:50;padding:20px}.eraser-size-modal.hidden{display:none}.eraser-size-card{position:relative;width:min(440px,100%);background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);border-radius:22px;padding:28px}.eraser-size-card h3{margin:0 0 18px;font-size:23px}.eraser-size-options{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:18px}.eraser-option{display:flex;align-items:center;gap:12px;width:100%;font-family:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;color:var(--ink);cursor:pointer;text-align:right}.eraser-option:hover{background:#f7fbff}.eraser-option.selected{border-color:var(--primary);background:#eff7ff;box-shadow:0 0 0 2px rgba(20,121,255,.10)}.eraser-dot{display:inline-block;flex:0 0 auto;border-radius:50%;background:#607386;border:1px solid #17324d}.eraser-option span:last-child{font-weight:800}#saveEraserSize{width:100%}`;
+  style.textContent=`.eraser-size-wrap{margin:0 0 6px}.eraser-size-btn{width:100%;font-family:inherit;border:1px solid var(--line);border-radius:11px;padding:8px 10px;background:#fff;color:var(--ink);cursor:pointer}.eraser-size-btn:hover{background:#f7fbff}.eraser-size-modal{position:fixed;inset:0;background:rgba(12,35,56,.46);display:grid;place-items:center;z-index:50;padding:20px}.eraser-size-modal.hidden{display:none}.eraser-size-card{position:relative;width:min(480px,100%);background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);border-radius:22px;padding:28px}.eraser-size-card h3{margin:0 0 12px;font-size:23px}.eraser-size-degree{font-weight:900;color:var(--primary);margin-bottom:14px;text-align:center;font-size:16px}.eraser-size-card input[type=range]{width:100%;accent-color:var(--primary);cursor:pointer}.eraser-size-labels{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:8px 0 16px;color:var(--muted);font-size:11px;text-align:center}.eraser-size-selected{text-align:center;font-weight:800;margin-bottom:18px;color:var(--ink)}#saveEraserSize{width:100%}`;
   document.head.appendChild(style);
 })();
