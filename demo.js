@@ -1,42 +1,41 @@
 const $=s=>document.querySelector(s);
 let peer=null,conn=null,localStream=null,role='',remotePeerId='';
-const status=t=>$('#status').textContent=t; const connState=t=>$('#connectionState').textContent=t;
+const status=t=>$('#status').textContent=t;const connState=t=>$('#connectionState').textContent=t;
 function log(t,remote=false){const d=document.createElement('div');d.className='msg';d.textContent=(remote?'طرف مقابل: ':'شما: ')+t;$('#messages').appendChild(d);$('#messages').scrollTop=$('#messages').scrollHeight;}
-function setupData(c){conn=c; c.on('open',()=>{connState('متصل ✅');status('اتصال برقرار شد.');}); c.on('data',data=>{if(data?.type==='chat')log(data.text,true); if(data?.type==='board'){applyBoard(data.action,false);}}); c.on('close',()=>{connState('قطع شد');status('اتصال بسته شد.');}); c.on('error',e=>{connState('خطای اتصال');status('خطا: '+(e?.message||e));});}
+function stableRoomId(){let id=localStorage.getItem('mehrFarazanRoomId');if(!id){id='mehr-'+Math.random().toString(36).slice(2,8);localStorage.setItem('mehrFarazanRoomId',id);}return id;}
+function setupData(c){conn=c;c.on('open',()=>{connState('متصل ✅');status('اتصال برقرار شد.');});c.on('data',data=>{if(data?.type==='chat')log(data.text,true);if(data?.type==='board')applyBoard(data.action,false);if(data?.type==='board-sync'&&data.image)loadBoardImage(data.image);});c.on('close',()=>{connState('طرف مقابل خارج شد');status('اتصال بسته شد.');});c.on('error',e=>{connState('خطای اتصال');status('خطا: '+(e?.message||e));});}
 function connectData(id){setupData(peer.connect(id,{reliable:true,serialization:'json'}));}
-$('#createBtn').onclick=()=>{
- role='host';
- if(peer)peer.destroy();
- peer=new Peer();
- peer.on('open',id=>{$('#myCode').textContent=id;remotePeerId=id;status('کد اتاق را در گوشی وارد کن.');connState('در انتظار گوشی…');});
- peer.on('connection',c=>{remotePeerId=c.peer;setupData(c);});
- peer.on('call',call=>{call.answer();call.on('stream',s=>{$('#remoteVideo').srcObject=s;$('#remoteVideo').play().catch(()=>{});status('تصویر و صدای گوشی دریافت شد ✅');});});
- peer.on('error',e=>status('خطای اتاق: '+e.type));
-};
-$('#joinBtn').onclick=()=>{
- const id=$('#roomInput').value.trim(); if(!id){status('کد اتاق را وارد کن.');return;}
- role='guest'; if(peer)peer.destroy(); peer=new Peer();
- peer.on('open',()=>{connectData(id);remotePeerId=id;status('در حال اتصال به کامپیوتر…');});
- peer.on('call',call=>{if(!localStream){call.answer();return;}call.answer(localStream);call.on('stream',s=>{$('#remoteVideo').srcObject=s;});});
- peer.on('error',e=>status('خطای اتصال: '+e.type));
-};
-$('#mediaBtn').onclick=async()=>{
- try{
-  localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-  $('#remoteVideo').muted=true; $('#remoteVideo').srcObject=localStream;
-  if(role==='guest'&&remotePeerId){const call=peer.call(remotePeerId,localStream);call.on('error',e=>status('خطای صدا/تصویر: '+e.message));status('دوربین و میکروفون روشن شد؛ در حال ارسال به کامپیوتر…');}
-  else status('دوربین و میکروفون روشن شد.');
- }catch(e){status('اجازهٔ دوربین/میکروفون داده نشد: '+e.message);}
-};
+function showCode(id){$('#myCode').textContent=id;remotePeerId=id;}
+function createPeer(id,done){if(peer)peer.destroy();peer=new Peer(id);peer.on('open',done);peer.on('error',e=>{if(e.type==='unavailable-id'){localStorage.removeItem('mehrFarazanRoomId');status('کد قبلی آزاد نبود؛ دوباره «ساخت / ورود معلم» را بزن.');}else status('خطای اتاق: '+e.type);});}
+$('#createBtn').onclick=()=>{role='host';const id=stableRoomId();createPeer(id,()=>{showCode(id);status('اتاق آماده است؛ کد را در گوشی وارد کن.');connState('در انتظار گوشی…');});peer?.on('connection',c=>{remotePeerId=c.peer;setupData(c);sendBoardSync();});peer?.on('call',call=>{if(localStream)call.answer(localStream);else call.answer();attachCall(call);});};
+$('#joinBtn').onclick=()=>{const id=$('#roomInput').value.trim();if(!id){status('کد اتاق را وارد کن.');return;}role='guest';if(peer)peer.destroy();peer=new Peer();peer.on('open',()=>{remotePeerId=id;connectData(id);status('در حال اتصال به اتاق…');});peer.on('call',call=>{if(localStream)call.answer(localStream);else call.answer();attachCall(call);});peer.on('error',e=>status('خطای اتصال: '+e.type));};
+$('#copyCodeBtn').onclick=async()=>{const code=$('#myCode').textContent.trim();if(!code||code==='—'){status('اول اتاق را بساز.');return;}try{await navigator.clipboard.writeText(code);status('کد اتاق کپی شد ✅');}catch(_){const ta=document.createElement('textarea');ta.value=code;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();status('کد اتاق کپی شد ✅');}};
+function attachCall(call){call.on('stream',s=>{$('#remoteVideo').srcObject=s;$('#remoteVideo').play().catch(()=>{});status('تصویر و صدای طرف مقابل دریافت شد ✅');});call.on('error',e=>status('خطای صدا/تصویر: '+(e?.message||e)));}
+async function callRemote(){if(!localStream||!peer||!remotePeerId)return;const call=peer.call(remotePeerId,localStream);attachCall(call);}
+$('#mediaBtn').onclick=async()=>{try{if(!localStream)localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});$('#localVideo').srcObject=localStream;$('#localVideo').play().catch(()=>{});if(role==='guest'||role==='host')await callRemote();status('دوربین و میکروفون روشن شد.');}catch(e){status('اجازه دوربین/میکروفون داده نشد: '+e.message);}};
+$('#muteBtn').onclick=()=>{const t=localStream?.getAudioTracks?.()[0];if(!t)return; t.enabled=!t.enabled;$('#muteBtn').textContent=t.enabled?'بی‌صدا کردن میکروفون':'فعال کردن میکروفون';};
+$('#camBtn').onclick=()=>{const t=localStream?.getVideoTracks?.()[0];if(!t)return;t.enabled=!t.enabled;$('#camBtn').textContent=t.enabled?'خاموش کردن دوربین':'روشن کردن دوربین';};
 $('#sendBtn').onclick=()=>{const v=$('#chatInput').value.trim();if(!v)return;log(v);if(conn?.open)conn.send({type:'chat',text:v});$('#chatInput').value='';};
 $('#chatInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('#sendBtn').click();});
 
-const canvas=$('#board'),ctx=canvas.getContext('2d'),color=$('#color');let drawing=false,last=null;
-function resize(){const r=canvas.getBoundingClientRect();const old=document.createElement('canvas');old.width=canvas.width;old.height=canvas.height;if(old.width&&old.height)old.getContext('2d').drawImage(canvas,0,0);canvas.width=Math.max(1,Math.round(r.width*devicePixelRatio));canvas.height=Math.max(1,Math.round(r.height*devicePixelRatio));ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);ctx.fillStyle='#fff';ctx.fillRect(0,0,r.width,r.height);if(old.width&&old.height)ctx.drawImage(old,0,0,r.width,r.height);} resize();window.addEventListener('resize',resize);
+const canvas=$('#board'),ctx=canvas.getContext('2d'),color=$('#color'),size=$('#size');let drawing=false,last=null,tool='pen',history=[],future=[];
+function resize(){const r=canvas.getBoundingClientRect();const old=document.createElement('canvas');old.width=canvas.width;old.height=canvas.height;if(old.width&&old.height)old.getContext('2d').drawImage(canvas,0,0);canvas.width=Math.max(1,Math.round(r.width*devicePixelRatio));canvas.height=Math.max(1,Math.round(r.height*devicePixelRatio));ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);ctx.fillStyle='#fff';ctx.fillRect(0,0,r.width,r.height);if(old.width&&old.height)ctx.drawImage(old,0,0,r.width,r.height);}resize();window.addEventListener('resize',resize);
 function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+function snapshot(){return canvas.toDataURL('image/png');}
+function loadBoardImage(src){const im=new Image();im.onload=()=>{ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(im,0,0,canvas.width,canvas.height);ctx.restore();};im.src=src;}
 function sendBoard(a){if(conn?.open)conn.send({type:'board',action:a});}
-function applyBoard(a,send=true){if(!a)return;if(a.type==='clear'){ctx.save();ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.clientWidth,canvas.clientHeight);ctx.restore();}if(a.type==='stroke'){ctx.save();ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);ctx.strokeStyle=a.color;ctx.lineWidth=a.size;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(a.x1,a.y1);ctx.lineTo(a.x2,a.y2);ctx.stroke();ctx.restore();}if(send)sendBoard(a);}
-canvas.addEventListener('pointerdown',e=>{drawing=true;last=point(e);canvas.setPointerCapture?.(e.pointerId);});
-canvas.addEventListener('pointermove',e=>{if(!drawing||!last)return;const p=point(e);applyBoard({type:'stroke',x1:last.x,y1:last.y,x2:p.x,y2:p.y,color:color.value,size:4});last=p;});
-['pointerup','pointercancel'].forEach(ev=>canvas.addEventListener(ev,e=>{drawing=false;last=null;try{canvas.releasePointerCapture?.(e.pointerId)}catch(_){}}));
-$('#clearBtn').onclick=()=>applyBoard({type:'clear'});
+function applyBoard(a,send=true){if(!a)return;const r=canvas.getBoundingClientRect();ctx.save();ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);ctx.lineCap='round';ctx.lineJoin='round';
+if(a.type==='clear'){ctx.globalCompositeOperation='source-over';ctx.fillStyle='#fff';ctx.fillRect(0,0,r.width,r.height);} 
+if(a.type==='stroke'){ctx.globalCompositeOperation=a.tool==='eraser'?'source-over':'source-over';ctx.strokeStyle=a.tool==='eraser'?'#fff':a.color;ctx.lineWidth=a.size;ctx.beginPath();ctx.moveTo(a.x1,a.y1);ctx.lineTo(a.x2,a.y2);ctx.stroke();}
+if(a.type==='shape'){ctx.strokeStyle=a.color;ctx.lineWidth=a.size;ctx.beginPath();const x=a.x,y=a.y,w=a.w,h=a.h;if(a.kind==='line'){ctx.moveTo(x,y);ctx.lineTo(x+w,y+h);}else if(a.kind==='rectangle'){ctx.rect(x,y,w,h);}else if(a.kind==='circle'){ctx.arc(x+w/2,y+h/2,Math.min(Math.abs(w),Math.abs(h))/2,0,Math.PI*2);}else if(a.kind==='triangle'){ctx.moveTo(x+w/2,y);ctx.lineTo(x,y+h);ctx.lineTo(x+w,y+h);ctx.closePath();}else if(a.kind==='arrow'){const ang=Math.atan2(h,w),head=14;ctx.moveTo(x,y);ctx.lineTo(x+w,y+h);ctx.moveTo(x+w,y+h);ctx.lineTo(x+w-head*Math.cos(ang-Math.PI/6),y+h-head*Math.sin(ang-Math.PI/6));ctx.moveTo(x+w,y+h);ctx.lineTo(x+w-head*Math.cos(ang+Math.PI/6),y+h-head*Math.sin(ang+Math.PI/6));}ctx.stroke();}
+ctx.restore();if(send)sendBoard(a);}
+function pushHistory(){history.push(snapshot());if(history.length>30)history.shift();future=[];}
+function restore(src){loadBoardImage(src);}
+canvas.addEventListener('pointerdown',e=>{drawing=true;last=point(e);canvas.setPointerCapture?.(e.pointerId);pushHistory();});
+canvas.addEventListener('pointermove',e=>{if(!drawing||!last)return;const p=point(e);if(['line','rectangle','circle','triangle','arrow'].includes(tool)){restore(history[history.length-1]);const a={type:'shape',kind:tool,x:last.x,y:last.y,w:p.x-last.x,h:p.y-last.y,color:color.value,size:Number(size.value)};if(tool==='pen'||tool==='eraser')applyBoard({type:'stroke',x1:last.x,y1:last.y,x2:p.x,y2:p.y,tool,color:color.value,size:Number(size.value)});else applyBoard(a,false);}else {const eraser=tool==='eraser';applyBoard({type:'stroke',x1:last.x,y1:last.y,x2:p.x,y2:p.y,tool:eraser?'eraser':'pen',color:color.value,size:Number(size.value)},true);}last=p;});
+canvas.addEventListener('pointerup',e=>{drawing=false;last=null;try{canvas.releasePointerCapture?.(e.pointerId)}catch(_){}});canvas.addEventListener('pointercancel',e=>{drawing=false;last=null;});
+document.querySelectorAll('.tool-btn[data-tool]').forEach(b=>b.onclick=()=>{tool=b.dataset.tool;document.querySelectorAll('.tool-btn[data-tool]').forEach(x=>x.classList.remove('active'));b.classList.add('active');});
+$('#clearBtn').onclick=()=>{pushHistory();applyBoard({type:'clear'});};
+$('#undoBtn').onclick=()=>{if(!history.length)return;future.push(snapshot());restore(history.pop());};
+$('#redoBtn').onclick=()=>{if(!future.length)return;history.push(snapshot());restore(future.pop());};
+function sendBoardSync(){if(conn?.open)conn.send({type:'board-sync',image:snapshot()});}
