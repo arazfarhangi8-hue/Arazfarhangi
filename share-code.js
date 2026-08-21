@@ -16,9 +16,8 @@
   function shareCode(){
     const code=getCode();
     if(!code||code==='—'){statusEl.textContent='ابتدا اتاق را بساز.';return;}
-    const text=`کد ورود به کلاس مهر فرازان: ${code}`;
     if(navigator.share){
-      navigator.share({title:'اتاق مهر فرازان',text}).catch(()=>{});
+      navigator.share({title:code,text:code}).catch(()=>{});
     }else{
       statusEl.textContent='اشتراک‌گذاری مستقیم روی این دستگاه پشتیبانی نمی‌شود؛ کد را کپی کردم.';
       copyCode(false);
