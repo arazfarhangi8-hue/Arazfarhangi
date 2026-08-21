@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>درخت عشق | مهر فرازان</title>
+<style>
+:root{--bg:#fff8fb;--pink:#e91e63;--deep:#7b1fa2;--green:#2e7d32;--ink:#292133}
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:linear-gradient(135deg,#fff,#fff1f7);color:var(--ink)}
+header{padding:18px 24px;text-align:center;background:#fff;border-bottom:1px solid #f1d9e5;position:sticky;top:0;z-index:5}h1{margin:0;color:var(--pink);font-size:28px}header p{margin:7px 0 0;color:#666}
+.wrap{max-width:1100px;margin:auto;padding:20px}.panel{background:#fff;border-radius:22px;box-shadow:0 10px 35px #7b1fa218;padding:18px;margin-bottom:18px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}.controls button{border:0;border-radius:13px;padding:11px 16px;font-size:16px;cursor:pointer;background:#f5e7ff;color:#5b207a}.controls button.active{background:var(--pink);color:#fff}.clear{background:#eee!important;color:#444!important}
+#tree{position:relative;min-height:560px;overflow:hidden;border-radius:18px;background:radial-gradient(circle at 50% 15%,#fff 0,#fff9fc 45%,#f7e9f1 100%);border:2px solid #f4d6e3}
+svg{width:100%;height:560px;display:block}.shape{cursor:pointer;transition:transform .15s}.shape:hover{transform:scale(1.08);transform-origin:center}
+.info{text-align:center;font-size:15px;color:#666;margin:8px 0 0}.badge{display:inline-block;background:#fff0f6;color:#c2185b;border-radius:999px;padding:6px 12px;margin:3px}
+@media(max-width:600px){h1{font-size:23px}.wrap{padding:12px}#tree,svg{min-height:500px;height:500px}}
+</style>
+</head>
+<body>
+<header><h1>🌳 درخت عشق — مهر فرازان</h1><p>نسخه رایگان آزمایشی با شکل‌های هندسی</p></header>
+<div class="wrap">
+<div class="panel">
+ <div class="controls" id="controls">
+  <button class="active" data-shape="circle">● دایره</button><button data-shape="square">■ مربع</button><button data-shape="triangle">▲ مثلث</button><button data-shape="star">★ ستاره</button><button data-shape="heart">♥ قلب</button><button class="clear" id="clear">پاک کردن شکل‌ها</button>
+ </div>
+ <p class="info">یک شکل را انتخاب کن، سپس روی شاخه‌های درخت کلیک کن تا شکل روی درخت قرار بگیرد. <span class="badge" id="count">۰ شکل</span></p>
+</div>
+<div class="panel" id="tree">
+<svg id="svg" viewBox="0 0 1000 560" aria-label="درخت عشق">
+ <defs><linearGradient id="trunk" x1="0" x2="1"><stop stop-color="#6d3b20"/><stop offset=".5" stop-color="#9a5a2e"/><stop offset="1" stop-color="#613319"/></linearGradient></defs>
+ <rect width="1000" height="560" fill="transparent"/>
+ <ellipse cx="500" cy="525" rx="300" ry="28" fill="#d9b7c5" opacity=".45"/>
+ <path d="M455 525 C455 470 470 420 475 360 C480 305 460 260 445 225 C430 195 420 170 410 145" stroke="url(#trunk)" stroke-width="42" fill="none" stroke-linecap="round"/>
+ <path d="M545 525 C545 465 530 415 525 360 C520 310 540 270 555 235 C570 200 585 175 600 145" stroke="url(#trunk)" stroke-width="42" fill="none" stroke-linecap="round"/>
+ <g stroke="#78421f" stroke-width="18" stroke-linecap="round" fill="none">
+  <path d="M475 370 Q405 310 330 285"/><path d="M475 330 Q390 250 300 235"/><path d="M480 290 Q430 210 390 165"/>
+  <path d="M525 370 Q595 310 670 285"/><path d="M525 330 Q610 250 700 235"/><path d="M520 290 Q570 210 610 165"/>
+  <path d="M470 405 Q405 385 350 395"/><path d="M530 405 Q595 385 650 395"/>
+ </g>
+ <g fill="#79b84a" opacity=".9">
+  <circle cx="300" cy="220" r="70"/><circle cx="390" cy="155" r="72"/><circle cx="700" cy="220" r="70"/><circle cx="610" cy="155" r="72"/><circle cx="350" cy="390" r="60"/><circle cx="650" cy="390" r="60"/><circle cx="500" cy="110" r="78"/>
+ </g>
+ <g id="shapes"></g>
+</svg>
+</div>
+</div>
+<script>
+const svg=document.getElementById('svg'), layer=document.getElementById('shapes'), controls=document.getElementById('controls'), count=document.getElementById('count');
+let selected='circle', total=0;
+const fa=n=>n.toLocaleString('fa-IR');
+controls.addEventListener('click',e=>{const b=e.target.closest('button[data-shape]');if(!b)return;selected=b.dataset.shape;document.querySelectorAll('[data-shape]').forEach(x=>x.classList.remove('active'));b.classList.add('active')});
+document.getElementById('clear').onclick=()=>{layer.innerHTML='';total=0;count.textContent=fa(0)+' شکل'};
+svg.addEventListener('click',e=>{if(e.target.closest('#shapes'))return;const r=svg.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*1000,y=(e.clientY-r.top)/r.height*560;if(y>500)return;addShape(x,y)});
+function addShape(x,y){let el,fill=['#e91e63','#9c27b0','#2196f3','#ff9800','#43a047'][total%5];if(selected==='circle')el=document.createElementNS('http://www.w3.org/2000/svg','circle'),el.setAttribute('r',20);if(selected==='square')el=document.createElementNS('http://www.w3.org/2000/svg','rect'),el.setAttribute('x',-20),el.setAttribute('y',-20),el.setAttribute('width',40),el.setAttribute('height',40),el.setAttribute('rx',7);if(selected==='triangle')el=document.createElementNS('http://www.w3.org/2000/svg','path'),el.setAttribute('d','M0 -24 L24 20 L-24 20 Z');if(selected==='star')el=document.createElementNS('http://www.w3.org/2000/svg','path'),el.setAttribute('d','M0 -27 L7 -9 L26 -9 L11 3 L17 22 L0 11 L-17 22 L-11 3 L-26 -9 L-7 -9 Z');if(selected==='heart')el=document.createElementNS('http://www.w3.org/2000/svg','path'),el.setAttribute('d','M0 24 C-45 -5 -22 -35 0 -14 C22 -35 45 -5 0 24 Z');el.setAttribute('fill',fill);el.setAttribute('transform',`translate(${x} ${y})`);el.classList.add('shape');el.onclick=ev=>{ev.stopPropagation();el.remove();total--;count.textContent=fa(total)+' شکل'};layer.appendChild(el);total++;count.textContent=fa(total)+' شکل'}
+</script>
+</body></html>
