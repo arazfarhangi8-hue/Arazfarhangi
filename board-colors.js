@@ -1,4 +1,4 @@
-// رنگ قلم و شکل‌ها + پاک‌کن سفید، بدون دست‌زدن به منطق اصلی تخته
+// رنگ قلم و شکل‌ها + پاک‌کن کاملاً مستقل از رنگ انتخابی
 (() => {
   const canvas = document.getElementById('board');
   const color = document.getElementById('boardColor');
@@ -6,13 +6,13 @@
 
   const ctx = canvas.getContext('2d');
   const white = '#ffffff';
+  const isEraserActive = () => !!document.querySelector('[data-tool="eraser"].active');
 
-  // رنگ متن و شکل‌ها و قلم از انتخابگر گرفته شود.
   const originalStroke = ctx.stroke.bind(ctx);
   ctx.stroke = function (...args) {
     const oldComposite = this.globalCompositeOperation;
     const oldStroke = this.strokeStyle;
-    if (oldComposite === 'destination-out') {
+    if (isEraserActive()) {
       this.globalCompositeOperation = 'source-over';
       this.strokeStyle = white;
     } else {
@@ -28,7 +28,7 @@
   ctx.fill = function (...args) {
     const oldComposite = this.globalCompositeOperation;
     const oldFill = this.fillStyle;
-    if (oldComposite === 'destination-out') {
+    if (isEraserActive()) {
       this.globalCompositeOperation = 'source-over';
       this.fillStyle = white;
     } else {
@@ -40,7 +40,6 @@
     return result;
   };
 
-  // متن تایپ‌شده هم رنگ انتخابی را بگیرد.
   const originalFillText = ctx.fillText.bind(ctx);
   ctx.fillText = function (...args) {
     const oldFill = this.fillStyle;
@@ -50,9 +49,7 @@
     return result;
   };
 
-  // تخته هنگام شروع و تغییر اندازه همیشه سفید باشد.
   const paintWhite = () => {
-    const r = canvas.getBoundingClientRect();
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
@@ -61,7 +58,6 @@
     ctx.restore();
   };
 
-  // برای وضعیت اولیه فقط زمانی سفیدش می‌کنیم که واقعاً خالی باشد.
   const isBlank = () => {
     try {
       const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -73,9 +69,10 @@
   };
 
   if (isBlank()) paintWhite();
-
   color.addEventListener('input', () => {
-    ctx.strokeStyle = color.value;
-    ctx.fillStyle = color.value;
+    if (!isEraserActive()) {
+      ctx.strokeStyle = color.value;
+      ctx.fillStyle = color.value;
+    }
   });
 })();
